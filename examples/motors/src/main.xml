@@ -1,0 +1,75 @@
+<?xml version="1.0" encoding="utf-8"?>
+<program xmlns="http://www.kinoma.com/kpr/1">
+
+    <require id="TB6612FNG" path="TB6612FNG" />
+    <require id="HardwarepinsModule" path="HardwarepinsModule" />
+
+    <container id="MainContainer" top="0" left="0" bottom="0" right="0">
+        <skin color="white"/>
+        <column>
+            <content width="150" height="150" active="true">
+                <skin color="green"/>
+                <behavior>
+                    <field id="currentDirection" value="TB6612FNG.FORWARD" />
+                    <method id="onTouchBegan" params="content, id, x, y, ticks">
+                        <![CDATA[
+                            // cycle through the motor direction states whenever
+                            // the user taps on the button
+                            switch( this.currentDirection )
+                            {
+                                case TB6612FNG.FORWARD:
+                                    this.currentDirection = TB6612FNG.BACKWARD;
+                                    break;
+
+                                case TB6612FNG.BACKWARD:
+                                    this.currentDirection = TB6612FNG.BRAKE;
+                                    break;
+
+                                default:
+                                    this.currentDirection = TB6612FNG.FORWARD;
+                            }
+
+                            // set the motor group direction to the new direction
+                            group.setDirection( this.currentDirection );
+
+                            // distribute handleDirectionChanged message to application content object
+                            application.distribute( "handleDirectionChanged", this.currentDirection );
+                        ]]>
+                    </method>
+                </behavior>
+            </content>
+            <label top="10" left="0" right="0" name="direction" string="TB6612FNG.FORWARD">
+               <style font="36px Arial bold" color="black"/>
+               <behavior>
+                   <method id="handleDirectionChanged" params="content, direction">
+                       <![CDATA[
+                          content.string = direction;
+                       ]]>
+                   </method>
+               </behavior>
+            </label>
+        </column>
+    </container>
+
+    <script>
+        <![CDATA[
+            // create a new motor group object instance
+            var group = new TB6612FNG.MotorGroup( 15 );
+
+            // add a motor instance to the motor group
+            group.add( new TB6612FNG.Motor( 9, 10, 34 ) );
+
+            // initialize the motor group
+            group.init();
+
+            // set the direction and speed of all the motors
+            // in the motor group
+            group.setDirection( TB6612FNG.FORWARD );
+            group.setSpeed( 0.5 );
+
+            // add the main container to the application
+            application.add( new MainContainer() );
+        ]]>
+    </script>
+
+</program>

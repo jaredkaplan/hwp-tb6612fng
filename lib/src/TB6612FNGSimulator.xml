@@ -1,0 +1,165 @@
+<!--
+  Copyright 2011-2014 Marvell Semiconductor, Inc.
+
+  Licensed under the Apache License, Version 2.0 (the "License");
+  you may not use this file except in compliance with the License.
+  You may obtain a copy of the License at
+
+      http://www.apache.org/licenses/LICENSE-2.0
+
+  Unless required by applicable law or agreed to in writing, software
+  distributed under the License is distributed on an "AS IS" BASIS,
+  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+  See the License for the specific language governing permissions and
+  limitations under the License.
+-->
+<module xmlns="http://www.kinoma.com/kpr/1">
+
+    <require id="HardwarepinsSimulator" path="kdt/simulator/HardwarepinsSimulator" />
+    <require id="PartSimulators" path="kdt/simulator/PartSimulators" />
+    <require id="TB6612FNG" path="TB6612FNG" />
+
+    <!-- +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++ -->
+    <!-- Function called by the HardwarepinsSimulatorDeviceBehavior  -->
+    <!-- when a simulator interface is registered. The data returned -->
+    <!-- is used to create a new parts simulator part in the device  -->
+    <!-- simulator UI.                                               -->
+    <!-- ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++-->
+
+    <function id="createHardwarepinsSimulatorPartData" params="config, id">
+        <![CDATA[
+            var data = null;
+
+            if( id == TB6612FNG.MOTOR_SIMULATOR_ID )
+                data = createMotorSimulatorPartData( config );
+
+            return data;
+        ]]>
+    </function>
+    
+    <!-- ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++ -->
+    <!-- Simulator implementation for TB6612FNG Motor hardwarepins module -->
+    <!-- ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++ -->
+
+    <function id="createMotorSimulatorPartData" params="config">
+        <![CDATA[
+            var data = {
+                id: TB6612FNG.MOTOR_SIMULATOR_ID,
+                behavior: MotorSimulatorPartBehavior,
+                header : { 
+                    label : (config != null && "label" in config) ? config.label : "Motor", name : "TB6612FNG Motor", iconVariant : PartSimulators.SENSOR_KNOB 
+                }
+            };
+
+            return data;
+        ]]>
+    </function>
+
+    <!-- +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++ -->
+    <!-- MotorSimulatorPartBehavior class - behavior for the TB6612FNG motor driver    -->
+    <!-- simulator part container created by the hardwarepins device simulator. -->
+    <!-- +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++ -->
+
+    <texture id="MotorBackgroundTexture" small="motor-background.png" />
+    <texture id="MotorSpinnerTexture" small="motor-spinner.png" />
+
+    <container id="MotorContainer">
+        <behavior>
+            <field id="direction" />
+            <field id="speed" />
+            <field id="standby" />
+            <field id="increment" />
+            <method id="onDisplayed" params="content">
+                <![CDATA[
+                    content.interval = 0;
+                ]]>
+            </method>
+            <method id="onTimeChanged" params="content">
+                <![CDATA[
+                    content.spinner.rotation += this.increment;
+                ]]>
+            </method>
+            <method id="handleMotorStateChanged" params="content, motor">
+                <![CDATA[
+                    this.speed = motor.speed;
+                    this.direction = motor.direction
+
+                    this.update( content );
+                ]]>
+            </method>
+            <method id="handleStandbyModeChanged" params="content, standby">
+                <![CDATA[
+                   this.standby = standby;
+
+                   this.update( content );
+                ]]>
+            </method>
+            <method id="update" params="content">
+                <![CDATA[
+                    if( this.standby || this.direction == TB6612FNG.BRAKE || this.speed == 0 )
+                        content.stop();
+                    else
+                    {
+                        // calculate the spinner increment
+                        this.increment = this.speed * 35;
+
+                        // set the increment spin direction
+                        if( this.direction == TB6612FNG.BACKWARD )
+                            this.increment *= -1;
+                    
+                        // start the content interval timer
+                        content.start();
+                    }
+                ]]>
+            </method>
+        </behavior>
+        <container>
+            <skin texture="MotorBackgroundTexture" x="0" y="0" width="150" height="157"/>
+        </container>
+        <picture name="spinner" url="'motor-spinner.png'">
+            <behavior>
+                <method id="onCreate" params="content">
+                    <![CDATA[
+                        content.origin = {x:75.5,y:82};
+                    ]]>
+                </method>
+            </behavior>
+        </picture>
+    </container>
+
+    <!-- ++++++++++++++++++++++++++++++++++++++++++++++++++++ -->
+    <!-- Implementation for the motor simulator part behavior -->
+    <!-- ++++++++++++++++++++++++++++++++++++++++++++++++++++ -->
+
+    <behavior id="MotorSimulatorPartBehavior" like="PartSimulators.BasePartBehavior">
+        <field id="container" />
+        <method id="onCreate" params="column, data"> 
+            <![CDATA[
+                PartSimulators.BasePartBehavior.prototype.onCreate.call( this, column, data );
+
+                // add a small separatpr
+                column.add( new Content( {height:5} ) );
+
+                // create the motor simulator container
+                column.add( container = new MotorContainer() );
+            ]]>
+        </method>
+        <method id="sync" params="content, message">
+            <![CDATA[
+                var data = JSON.parse( message.requestText );
+
+                if( data != null && "motor" in data )
+                    container.delegate( "handleMotorStateChanged", data.motor );
+            ]]>
+        </method>
+        <method id="standby" params="content, message">
+            <![CDATA[
+                var data = JSON.parse( message.requestText );
+
+                if( data != null && "standby" in data )
+                    container.delegate( "handleStandbyModeChanged", data.standby );
+            ]]>
+        </method>
+    </behavior>
+
+</module>

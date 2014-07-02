@@ -1,0 +1,4 @@
+<?xml version="1.0" encoding="utf-8"?>
+<application xmlns="http://www.kinoma.com/kpr/application/1" id="com.marvell.kinoma.tb6612fng.examples.motors" program="src/main" title="Motors">
+
+</application>

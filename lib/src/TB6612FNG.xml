@@ -1,0 +1,207 @@
+<!--
+  Copyright 2011-2014 Marvell Semiconductor, Inc.
+
+  Licensed under the Apache License, Version 2.0 (the "License");
+  you may not use this file except in compliance with the License.
+  You may obtain a copy of the License at
+
+      http://www.apache.org/licenses/LICENSE-2.0
+
+  Unless required by applicable law or agreed to in writing, software
+  distributed under the License is distributed on an "AS IS" BASIS,
+  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+  See the License for the specific language governing permissions and
+  limitations under the License.
+-->
+<module xmlns="http://www.kinoma.com/kpr/1">
+
+    <require id="HardwarepinsModule" path="HardwarepinsModule" />
+
+    <!-- motor driver constants -->
+    <variable id="FORWARD" value="'forward'" />
+    <variable id="BACKWARD" value="'backward'" />
+    <variable id="BRAKE" value="'brake'" />
+
+    <!-- ++++++++++++++++++++ -->
+    <!-- Motor implementation -->
+    <!-- ++++++++++++++++++++ -->
+
+    <class id="Motor" like="HardwarepinsModule.HardwarepinsModule">
+        <field id="d1" />
+        <field id="d2" />
+        <field id="pwm" />
+        <field id="direction" value="FORWARD" />
+        <field id="speed" value="0" />
+        <field id="group" />
+        <constructor params="d1, d2, pwm, config">
+            <![CDATA[
+                HardwarepinsModule.HardwarepinsModule.call( this, config );
+
+                this.d1 = d1;
+                this.d2 = d2;
+                this.pwm = pwm;
+            ]]>
+        </constructor>
+        <method id="configureParameters" params="parameters">
+          <![CDATA[
+              parameters.d1 = this.d1;
+              parameters.d2 = this.d2;
+              parameters.pwm = this.pwm;
+          ]]>
+        </method>
+        <method id="createHardwarepinsSimulator">
+            <![CDATA[
+                return new MotorSimulatorInterface();
+            ]]>
+        </method>
+        <method id="serialize">
+            <![CDATA[
+                return { d1:this.d1, d2:this.d2, pwm:this.pwm, direction:this.direction, speed:this.speed };
+            ]]>
+        </method>
+        <method id="init" params="callback">
+            <![CDATA[
+                this.run( "TB6612FNGScripts", "motor_bll_init", null, callback );
+            ]]>
+        </method>
+        <method id="setDirection" params="direction, callback">
+            <![CDATA[
+                this.direction = direction;
+
+                if( this.group == null )
+                    this.run( "TB6612FNGScripts", "motor_bll_direction", { direction:this.direction}, callback );
+            ]]>
+        </method>
+        <method id="setSpeed" params="speed, callback">
+            <![CDATA[
+                this.speed = Math.max( Math.min( 1, speed ), 0 );
+
+                if( this.group == null )
+                    this.run( "TB6612FNGScripts", "motor_bll_speed", {speed:this.speed}, callback );
+            ]]>
+        </method>
+        <method id="sync" params="callback">
+            <![CDATA[
+                this.run( "TB6612FNGScripts", "motor_bll_sync", {motor:this.serialize()}, callback );
+            ]]>
+        </method>
+    </class>
+
+    <!-- +++++++++++++++++++++++++ -->
+    <!-- Motor simulator interface -->
+    <!-- +++++++++++++++++++++++++ -->
+
+    <variable id="MOTOR_SIMULATOR_ID" value="'TB6612FNG.Motor'" />
+
+    <class id="MotorSimulatorInterface" like="HardwarepinsModule.SimulatorInterface">
+        <method id="getSimulatorId">
+            <![CDATA[
+                return MOTOR_SIMULATOR_ID;
+            ]]>
+        </method>
+        <method id="getSimulatorModule">
+            <![CDATA[
+                return mergeURI( module.uri, "TB6612FNGSimulator" );
+            ]]>
+        </method>
+        <method id="motor_bll_init" params="query, parameters, invoker">
+            <![CDATA[
+                this.sendHardwarepinsEvent( "init", query, parameters, invoker );
+            ]]>
+        </method>
+        <method id="motor_bll_sync" params="query, parameters, invoker">
+            <![CDATA[
+                this.sendHardwarepinsEvent( "sync", query, parameters, invoker );
+            ]]>
+        </method>
+        <method id="motor_bll_standby" params="query, parameters, invoker">
+            <![CDATA[
+                this.sendHardwarepinsEvent( "standby", query, parameters, invoker );
+            ]]>
+        </method>
+    </class>
+
+    <!-- +++++++++++++++++++++++++ -->
+    <!-- MotorGroup implementation -->
+    <!-- +++++++++++++++++++++++++ -->
+
+    <class id="MotorGroup" like="HardwarepinsModule.HardwarepinsModule">
+        <field id="standby" />
+        <field id="motors" />
+        <constructor params="standby, config">
+            <![CDATA[
+                HardwarepinsModule.HardwarepinsModule.call( this, config );
+
+                this.standby = standby;
+                this.motors = new Array();
+            ]]>
+        </constructor>
+        <method id="add" params="motor">
+            <![CDATA[
+                if( motor instanceof Motor )
+                {
+                    motor.group = this;
+
+                    this.motors.push( motor );
+                }
+                else
+                    throw new Error( "You can only add Motor objects to the MotorGroup!" );
+            ]]>
+        </method>
+        <method id="configureParameters" params="parameters">
+            <![CDATA[
+                 HardwarepinsModule.HardwarepinsModule.prototype.configureParameters.call( this, parameters );
+
+                 parameters.standby = this.standby;
+                 parameters.motors = new Array();
+
+                 for( var j = 0; j < this.motors.length; j++ )
+                    parameters.motors.push( this.motors[j].serialize() );
+            ]]>
+        </method>
+        <method id="init" params="callback">
+            <![CDATA[
+                this.run( "TB6612FNGScripts", "motorgroup_bll_init", null, callback );
+            ]]>
+        </method>
+        <method id="sync" params="callback">
+            <![CDATA[
+                if( this.isSimulator() )
+                {
+                    for( var j = 0; j < this.motors.length; j++ )
+                       this.motors[j].sync( j == (this.motors.length - 1) ? callback : null );
+                }
+                else
+                    this.run( "TB6612FNGScripts", "motorgroup_bll_sync", null, callback );
+            ]]>
+        </method>
+        <method id="setStandby" params="standby, callback">
+            <![CDATA[
+                if( this.isSimulator() )
+                {
+                    for( var j = 0; j < this.motors.length; j++ )
+                       this.motors[j].run( "TB6612FNGScripts", "motor_bll_standby", {standby:standby} );
+                }
+                else
+                    this.run( "TB6612FNGScripts", "motorgroup_bll_standby", {state: standby ? HardwarepinsModule.LOW : HardwarepinsModule.HIGH}, callback );
+            ]]>
+        </method>
+        <method id="setDirection" params="direction, callback">
+            <![CDATA[
+                for( var j = 0; j < this.motors.length; j++ )
+                   this.motors[j].setDirection( direction );
+
+                this.sync( callback );
+            ]]>
+        </method>
+        <method id="setSpeed" params="speed, callback">
+            <![CDATA[
+                for( var j = 0; j < this.motors.length; j++ )
+                   this.motors[j].setSpeed( speed );
+
+                this.sync( callback );
+            ]]>
+        </method>
+    </class>
+
+</module>
