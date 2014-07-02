@@ -61,7 +61,7 @@
     <!-- +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++ -->
 
     <texture id="MotorBackgroundTexture" small="motor-background.png" />
-    <texture id="MotorSpinnerTexture" small="motor-spinner.png" />
+    <texture id="MotorFrontTexture" small="motor-front.png" />
 
     <container id="MotorContainer">
         <behavior>
@@ -125,6 +125,9 @@
                 </method>
             </behavior>
         </picture>
+        <container>
+            <skin texture="MotorFrontTexture" x="0" y="0" width="150" height="157"/>
+        </container>
     </container>
 
     <!-- ++++++++++++++++++++++++++++++++++++++++++++++++++++ -->
